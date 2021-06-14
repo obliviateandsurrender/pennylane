@@ -92,6 +92,7 @@ from .optimization import (
     merge_rotations,
     single_qubit_fusion,
     diag_behind_controls,
+    rx_behind_cnot
 )
 from .transpilation import cnot_to_cz
 from .compile import compile

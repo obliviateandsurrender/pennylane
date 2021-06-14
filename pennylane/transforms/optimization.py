@@ -18,7 +18,7 @@ from pennylane import numpy as np
 from pennylane.wires import Wires
 from pennylane.transforms import qfunc_transform
 from pennylane.operation import DiagonalOperation
-from pennylane.ops.qubit import Rot
+from pennylane.ops.qubit import Rot, CNOT, RX, PauliX
 
 from pennylane.math import allclose, isclose
 
@@ -234,7 +234,7 @@ def merge_rotations(tape):
                 list_copy.pop(next_gate_idx + 1)
 
                 # The Rot gate must be treated separately
-                if current_gate.name == "Rot":
+                if isinstance(current_gate, Rot):
                     cumulative_angles = fuse_rot(cumulative_angles, next_gate.parameters)
                 # Other, single-parameter rotation gates just have the angle summed
                 else:
@@ -411,23 +411,103 @@ def diag_behind_controls(tape):
             if len(next_gate.wires) != 1:
                 break
 
-            # Valid next gates must be diagonal, and must share the *control* wire
-            if next_gate.wires[0] == current_gate.wires[0]:
-                if isinstance(next_gate, DiagonalOperation):
+            # If it is a single-qubit gate, the action of _find_next_gate ensures
+            # that the gate shares the control wire; check if it's diagonal
+            if isinstance(next_gate, DiagonalOperation):
+                list_copy.pop(next_gate_idx + 1)
+                next_gate.queue()
+            # It could also be that the gate is a Rot but still diagonal if
+            # the angle of the RY gate in the middle is 0
+            elif isinstance(next_gate, Rot):
+                if isclose(next_gate.parameters[1], 0.0):
                     list_copy.pop(next_gate_idx + 1)
                     next_gate.queue()
-                # It could also be that the gate is a Rot but still diagonal if
-                # the angle of the RY gate in the middle is 0
-                elif isinstance(next_gate, Rot):
-                    if isclose(next_gate.parameters[1], 0.0):
-                        list_copy.pop(next_gate_idx + 1)
-                        next_gate.queue()
-                    else:
-                        break
-                else:
-                    break
+            else:
+                break
 
             next_gate_idx = _find_next_gate(Wires(current_gate.wires[0]), list_copy[1:])
+
+        # After we have found all possible diagonal gates to push through the control,
+        # we must still apply the original gate
+        current_gate.queue()
+        list_copy.pop(0)
+
+    # Queue the measurements normally
+    for m in tape.measurements:
+        m.queue()
+
+@qfunc_transform
+def rx_behind_cnot(tape):
+    """Quantum function transform to push X rotation gates that appear on the target
+    gate after a CNOT to behind the CNOT.
+
+    Args:
+        tape (.QuantumTape): A quantum tape.
+
+    **Example**
+
+    Consider the following quantum function.
+
+    .. code-block:: python
+
+        def qfunc_rx_after_cnot(x):
+            qml.Hadamard(wires=0)
+            qml.RX(2 * x, wires=1)
+            qml.CNOT(wires=[0, 1])
+            qml.RX(x, wires=1)
+            qml.PauliX(wires=1)
+            return qml.expval(qml.PauliX(0))
+
+    In this circuit, the ``RX`` and the ``CNOT`` commute because the ``RX`` is
+    applied to the target qubit; this means that they can swap places, and the two
+    ``RX`` gates can be merged. Similarly, the ``PauliX`` can also be pushed through,
+    allowing all three single-qubit operations to be merged.
+
+    >>> optimized_qfunc = qml.compile(pipeline=[rx_behind_cnot, single_qubit_fusion])(qfunc)
+    >>> optimized_qnode = qml.QNode(optimized_qfunc, dev)
+    >>> print(qml.draw(optimized_qnode)())
+    0: ──Rot(3.14, 1.57, 0)──────╭C──┤ ⟨X⟩
+    1: ──Rot(1.57, 4.04, -1.57)──╰X──┤
+
+    """
+    # Make a working copy of the list to traverse
+    list_copy = tape.operations.copy()
+
+    while len(list_copy) > 0:
+        current_gate = list_copy[0]
+
+        # Only look at CNOTs
+        if not isinstance(current_gate, CNOT):
+            current_gate.queue()
+            list_copy.pop(0)
+            continue
+
+        # Find the next gate that uses the target wire
+        next_gate_idx = _find_next_gate(Wires(current_gate.wires[1]), list_copy[1:])
+
+        # If no such gate is found, queue the operation and move on
+        if next_gate_idx is None:
+            current_gate.queue()
+            list_copy.pop(0)
+            continue
+
+        # Loop as long as a valid next gate exists
+        while next_gate_idx is not None:
+            # Get the next gate
+            next_gate = list_copy[next_gate_idx + 1]
+
+            # If it is not a single-qubit gate, we can't push it through, so stop.
+            if len(next_gate.wires) != 1:
+                break
+
+            # If the next gate shares the target wire and is an RX or PauliX, push it behind
+            if isinstance(next_gate, RX) or isinstance(next_gate, PauliX):
+                list_copy.pop(next_gate_idx + 1)
+                next_gate.queue()
+            else:
+                break
+
+            next_gate_idx = _find_next_gate(Wires(current_gate.wires[1]), list_copy[1:])
 
         # After we have found all possible diagonal gates to push through the control,
         # we must still apply the original gate
