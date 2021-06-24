@@ -14,7 +14,8 @@
 """Transforms for optimizing quantum circuits."""
 
 from pennylane import numpy as np
-
+from pennylane.tape import get_active_tape
+from pennylane.queuing import apply_op
 from pennylane.wires import Wires
 from pennylane.transforms import qfunc_transform
 from pennylane.operation import DiagonalOperation
@@ -104,7 +105,7 @@ def cancel_inverses(tape):
 
         # Normally queue any gates that are not their own inverse
         if not current_gate.is_self_inverse:
-            current_gate.queue()
+            apply_op(current_gate)
             list_copy.pop(0)
             continue
 
@@ -113,7 +114,7 @@ def cancel_inverses(tape):
 
         # If no such gate is found queue the operation and move on
         if next_gate_idx is None:
-            current_gate.queue()
+            apply_op(current_gate)
             list_copy.pop(0)
             continue
 
@@ -132,7 +133,7 @@ def cancel_inverses(tape):
                 if len(Wires.shared_wires([current_gate.wires, next_gate.wires])) != len(
                     current_gate.wires
                 ):
-                    current_gate.queue()
+                    apply_op(current_gate)
                 # There is full overlap, but the wires are in a different order
                 else:
                     # If the wires are in a different order, only gates that are "symmetric"
@@ -140,17 +141,17 @@ def cancel_inverses(tape):
                     if current_gate.is_symmetric_over_wires:
                         list_copy.pop(next_gate_idx + 1)
                     else:
-                        current_gate.queue()
+                        apply_op(current_gate)
         # Otherwise, queue and move on to the next item
         else:
-            current_gate.queue()
+            apply_op(current_gate)
 
         # Remove this gate from the working list
         list_copy.pop(0)
 
     # Queue the measurements normally
     for m in tape.measurements:
-        m.queue()
+        apply_op(m)
 
 
 @qfunc_transform
@@ -201,13 +202,14 @@ def merge_rotations(tape):
     """
     # Make a working copy of the list to traverse
     list_copy = tape.operations.copy()
+    current_tape = get_active_tape()
 
     while len(list_copy) > 0:
         current_gate = list_copy[0]
 
         # Normally queue any non-rotation gates
         if not current_gate.is_composable_rotation:
-            current_gate.queue()
+            apply_op(current_gate, context=current_tape)
             list_copy.pop(0)
             continue
 
@@ -217,7 +219,7 @@ def merge_rotations(tape):
         # If no such gate is found (either there simply is none, or there are other gates
         # "in the way", queue the operation and move on
         if next_gate_idx is None:
-            current_gate.queue()
+            apply_op(current_gate, context=current_tape)
             list_copy.pop(0)
             continue
 
@@ -248,14 +250,17 @@ def merge_rotations(tape):
 
         # If the cumulative angle is not close to 0, apply the cumulative gate
         if not allclose(np.array(cumulative_angles), np.zeros(len(cumulative_angles))):
-            type(current_gate)(*cumulative_angles, wires=current_gate.wires).queue()
+            apply_op(
+                type(current_gate)(*cumulative_angles, wires=current_gate.wires),
+                context=current_tape,
+            )
 
         # Remove the first gate gate from the working list
         list_copy.pop(0)
 
     # Queue the measurements normally
     for m in tape.measurements:
-        m.queue()
+        apply_op(m)
 
 
 @qfunc_transform
@@ -304,7 +309,7 @@ def single_qubit_fusion(tape):
 
         # Normally queue any multi-qubit gates
         if current_gate.num_wires > 1:
-            current_gate.queue()
+            apply_op(current_gate)
             list_copy.pop(0)
             continue
 
@@ -314,7 +319,7 @@ def single_qubit_fusion(tape):
         # If no such gate is found (either there simply is none, or there are other gates
         # "in the way", queue the operation and move on
         if next_gate_idx is None:
-            current_gate.queue()
+            apply_op(current_gate)
             list_copy.pop(0)
             continue
 
@@ -340,14 +345,14 @@ def single_qubit_fusion(tape):
 
         # If the cumulative angle is not close to 0, apply the gate
         if not allclose(np.array(cumulative_angles), np.zeros(3)):
-            Rot(*cumulative_angles, wires=current_gate.wires).queue()
+            apply_op(Rot(*cumulative_angles, wires=current_gate.wires))
 
         # Remove the starting gate from the list
         list_copy.pop(0)
 
     # Queue the measurements normally
     for m in tape.measurements:
-        m.queue()
+        apply_op(m)
 
 
 @qfunc_transform
@@ -388,7 +393,7 @@ def diag_behind_controls(tape):
 
         # Consider only two-qubit gates
         if current_gate.num_wires != 2:
-            current_gate.queue()
+            apply_op(current_gate)
             list_copy.pop(0)
             continue
 
@@ -398,7 +403,7 @@ def diag_behind_controls(tape):
         # If no such gate is found (either there simply is none, or there are other gates
         # "in the way", queue the operation and move on
         if next_gate_idx is None:
-            current_gate.queue()
+            apply_op(current_gate)
             list_copy.pop(0)
             continue
 
@@ -415,13 +420,13 @@ def diag_behind_controls(tape):
             # that the gate shares the control wire; check if it's diagonal
             if isinstance(next_gate, DiagonalOperation):
                 list_copy.pop(next_gate_idx + 1)
-                next_gate.queue()
+                apply_op(next_gate)
             # It could also be that the gate is a Rot but still diagonal if
             # the angle of the RY gate in the middle is 0
             elif isinstance(next_gate, Rot):
                 if isclose(next_gate.parameters[1], 0.0):
                     list_copy.pop(next_gate_idx + 1)
-                    next_gate.queue()
+                    apply_op(next_gate)
             else:
                 break
 
@@ -429,12 +434,13 @@ def diag_behind_controls(tape):
 
         # After we have found all possible diagonal gates to push through the control,
         # we must still apply the original gate
-        current_gate.queue()
+        apply_op(current_gate)
         list_copy.pop(0)
 
     # Queue the measurements normally
     for m in tape.measurements:
-        m.queue()
+        apply_op(m)
+
 
 @qfunc_transform
 def rx_behind_cnot(tape):
@@ -478,7 +484,7 @@ def rx_behind_cnot(tape):
 
         # Only look at CNOTs
         if not isinstance(current_gate, CNOT):
-            current_gate.queue()
+            apply_op(current_gate)
             list_copy.pop(0)
             continue
 
@@ -487,7 +493,7 @@ def rx_behind_cnot(tape):
 
         # If no such gate is found, queue the operation and move on
         if next_gate_idx is None:
-            current_gate.queue()
+            apply_op(current_gate)
             list_copy.pop(0)
             continue
 
@@ -501,9 +507,9 @@ def rx_behind_cnot(tape):
                 break
 
             # If the next gate shares the target wire and is an RX or PauliX, push it behind
-            if isinstance(next_gate, RX) or isinstance(next_gate, PauliX):
+            if isinstance(next_gate, (RX, PauliX)):
                 list_copy.pop(next_gate_idx + 1)
-                next_gate.queue()
+                apply_op(next_gate)
             else:
                 break
 
@@ -511,9 +517,9 @@ def rx_behind_cnot(tape):
 
         # After we have found all possible diagonal gates to push through the control,
         # we must still apply the original gate
-        current_gate.queue()
+        apply_op(current_gate)
         list_copy.pop(0)
 
     # Queue the measurements normally
     for m in tape.measurements:
-        m.queue()
+        apply_op(m)

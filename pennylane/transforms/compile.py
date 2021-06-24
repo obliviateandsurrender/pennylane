@@ -20,7 +20,7 @@ import pennylane.templates as templates
 template_list = [cls[0] for cls in getmembers(templates, isclass)]
 
 from pennylane.tape import get_active_tape
-
+from pennylane.queuing import apply_op
 from pennylane.transforms import invisible, qfunc_transform, cancel_inverses, cnot_to_cz
 
 default_pipeline = [cancel_inverses]
@@ -86,4 +86,4 @@ def compile(tape, pipeline=default_pipeline, basis_set=None, num_passes=1):
 
     # Queue the operations on the optimized tape
     for op in expanded_tape.operations + expanded_tape.measurements:
-        op.queue()
+        apply_op(op, context=current_tape)
