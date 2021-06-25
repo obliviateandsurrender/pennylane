@@ -202,14 +202,13 @@ def merge_rotations(tape):
     """
     # Make a working copy of the list to traverse
     list_copy = tape.operations.copy()
-    current_tape = get_active_tape()
 
     while len(list_copy) > 0:
         current_gate = list_copy[0]
 
         # Normally queue any non-rotation gates
         if not current_gate.is_composable_rotation:
-            apply_op(current_gate, context=current_tape)
+            apply_op(current_gate)
             list_copy.pop(0)
             continue
 
@@ -219,7 +218,7 @@ def merge_rotations(tape):
         # If no such gate is found (either there simply is none, or there are other gates
         # "in the way", queue the operation and move on
         if next_gate_idx is None:
-            apply_op(current_gate, context=current_tape)
+            apply_op(current_gate)
             list_copy.pop(0)
             continue
 
@@ -250,10 +249,7 @@ def merge_rotations(tape):
 
         # If the cumulative angle is not close to 0, apply the cumulative gate
         if not allclose(np.array(cumulative_angles), np.zeros(len(cumulative_angles))):
-            apply_op(
-                type(current_gate)(*cumulative_angles, wires=current_gate.wires),
-                context=current_tape,
-            )
+            current_gate.__class__(*cumulative_angles, wires=current_gate.wires)
 
         # Remove the first gate gate from the working list
         list_copy.pop(0)
