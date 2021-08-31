@@ -76,7 +76,7 @@ class TestValidation:
 
         dev = qml.device("default.qubit", wires=1, shots=3)
 
-        with pytest.raises(qml.QuantumFunctionError, match="Devices with finite shots"):
+        with pytest.warns(UserWarning):
             QNode._validate_backprop_method(dev, interface)
 
     def test_validate_backprop_method_invalid_device(self):
