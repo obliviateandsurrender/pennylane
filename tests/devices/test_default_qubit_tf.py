@@ -1313,6 +1313,7 @@ class TestSamples:
         dev = qml.device("default.qubit.tf", wires=2, shots=shots)
 
         with pytest.warns(UserWarning):
+
             @qml.qnode(dev, diff_method="backprop", interface="tf")
             def circuit(a):
                 qml.RX(a, wires=0)
@@ -1346,6 +1347,7 @@ class TestSamples:
         dev = qml.device("default.qubit.tf", wires=2, shots=1000)
 
         with pytest.warns(UserWarning):
+
             @qml.qnode(dev, diff_method="backprop", interface="tf")
             def circuit():
                 qml.PauliX(0)
@@ -1363,6 +1365,7 @@ class TestSamples:
         dev = qml.device("default.qubit.tf", wires=2, shots=1000)
 
         with pytest.warns(UserWarning):
+
             @qml.qnode(dev, diff_method="backprop", interface="tf")
             def circuit():
                 qml.PauliX(0)
@@ -1382,6 +1385,7 @@ class TestSamples:
         dev = qml.device("default.qubit.tf", wires=3, shots=1000)
 
         with pytest.warns(UserWarning):
+
             @qml.qnode(dev, diff_method="backprop", interface="tf")
             def circuit(a, b):
                 qml.RX(a, wires=[0])

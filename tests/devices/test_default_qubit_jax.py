@@ -160,6 +160,7 @@ class TestQNodeIntegration:
             dev = qml.device("default.qubit.jax", wires=1, shots=1000, prng_key=key)
 
             with pytest.warns(UserWarning):
+
                 @qml.qnode(dev, interface="jax", diff_method="backprop")
                 def inner_circuit():
                     qml.Hadamard(0)
@@ -178,6 +179,7 @@ class TestQNodeIntegration:
         dev = qml.device("default.qubit.jax", wires=1, shots=1000)
 
         with pytest.warns(UserWarning):
+
             @qml.qnode(dev, interface="jax", diff_method="backprop")
             def circuit():
                 qml.Hadamard(0)
@@ -209,6 +211,7 @@ class TestQNodeIntegration:
         dev = qml.device("default.qubit.jax", wires=2, shots=1000)
 
         with pytest.warns(UserWarning):
+
             @qml.qnode(dev, interface="jax", diff_method="backprop")
             def circuit():
                 qml.CRZ(0.0, wires=[0, 1])
@@ -226,6 +229,7 @@ class TestQNodeIntegration:
         dev = qml.device("default.qubit.jax", wires=1, shots=1000)
 
         with pytest.warns(UserWarning):
+
             @qml.qnode(dev, interface="jax", diff_method="best")
             def circuit():
                 qml.DiagonalQubitUnitary(np.array([1.0, 1.0]), wires=0)
