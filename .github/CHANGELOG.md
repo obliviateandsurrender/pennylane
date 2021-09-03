@@ -383,6 +383,13 @@ and requirements-ci.txt (unpinned). This latter would be used by the CI.
   
 * The `qml.ResetError` is now supported for `default.mixed` device. 
   [(#1541)](https://github.com/PennyLaneAI/pennylane/pull/1541)
+  
+* `QNode.diff_method` will now reflect which method was selected from `diff_method="best"`.
+  [(#1568)](https://github.com/PennyLaneAI/pennylane/pull/1568)
+
+* QNodes now support `diff_method=None`. This works the same as `interface=None`. Such QNodes accept
+  floats, ints, lists and numpy arrays and return numpy output but can not be differentiated.
+  [(#1585)](https://github.com/PennyLaneAI/pennylane/pull/1585)
 
 
 <h3>Breaking changes</h3>
@@ -397,6 +404,12 @@ and requirements-ci.txt (unpinned). This latter would be used by the CI.
 * An warning is raised during QNode creation when a user requests backpropagation on
   a device with finite-shots.
   [(#1588)](https://github.com/PennyLaneAI/pennylane/pull/1588)
+
+* Dask and CVXPY dependent tests are skipped if those packages are not installed.
+[(#1617)](https://github.com/PennyLaneAI/pennylane/pull/1617)
+
+* The `qml.layer` template now works with tensorflow variables.
+[(#1615)](https://github.com/PennyLaneAI/pennylane/pull/1615)
 
 * Remove `QFT` from possible operations in `default.qubit` and `default.mixed`.
   [(#1600)](https://github.com/PennyLaneAI/pennylane/pull/1600)
@@ -424,9 +437,9 @@ and requirements-ci.txt (unpinned). This latter would be used by the CI.
 
 This release contains contributions from (in alphabetical order):
 
-Vishnu Ajith, Akash Narayanan B, Thomas Bromley, Tanya Garg, Josh Izaac, Prateek Jain, Christina Lee,
-Johannes Jakob Meyer, Romain Moyard, Esteban Payares, Pratul Saini, Maria Schuld, Arshpreet Singh,
-Ingrid Strandberg, Slimane Thabet, David Wierichs, Vincent Wong.
+Vishnu Ajith, Akash Narayanan B, Thomas Bromley, Tanya Garg, Josh Izaac, Prateek Jain, Ankit Khandelwal,
+Christina Lee, Johannes Jakob Meyer, Romain Moyard, Esteban Payares, Pratul Saini, Maria Schuld,
+Arshpreet Singh, Ingrid Strandberg, Slimane Thabet, David Wierichs, Vincent Wong.
 
 # Release 0.17.0 (current release)
 
